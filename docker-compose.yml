@@ -17,3 +17,4 @@ services:
     working_dir: /root/ros2_ws
 
     command: tail -f /dev/null
+    restart: always

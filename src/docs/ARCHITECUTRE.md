@@ -79,6 +79,10 @@ System został podzielony na **7 pakietów**, co zapewnia wysoką modularność 
 4. Pakiet piracer_control: PiRacer_Control_node pub:/cmd_motion sub: PWM_Driver_node; pub:/Steering_Servo sub:Servo_Driver_node; odometry_node pub:/odom sub:/follow_me_node
 5. Pakiet robot_hardware_interface: PWM_Driver_node, Servo_Driver_node, Encoder_Reader_node pub:/Wheel_speed sub:PiRacer_Control_Node & odometry_node
 
+uchyby beda liczone wzgledem base_linka; z tego wzgledu nalezy zrobic tf /target_pose do base_link
+# Follw_me_node.py
+Node, realizujacy funckje regulatora nadrzednego Gc1. Dodatkowo node ma tryby (jeszcze nieokreslone na ten momement Calibraiting, Searching (w momencie gdy zgubimy obiekt z pola widzenia) oraz Stopped). I w zaleznosci od stanu: albo bedzie liczyl regulator, albo publikuje zero, albo ruch w celu ponownego znalezienia obiektu).
+KWESTIA REGULATORA NA JUTRO
 ---
 
 ### Workspace Layout
