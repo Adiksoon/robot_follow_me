@@ -1,5 +1,15 @@
+# Cache Pythona i pliki skompilowane
+__pycache__/
+*.pyc
+
+# Artefakty ROS2 (NIGDY TEGO NIE COMMITUJEMY)
 build/
 install/
 log/
-*.pyc
-__pycache__/
+
+# Pliki wygenerowane z drzewa TF
+*.pdf
+*.gv
+
+# Konfiguracja lokalna edytorów (opcjonalnie)
+.vscode/
