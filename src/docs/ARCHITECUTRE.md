@@ -79,11 +79,50 @@ System został podzielony na **7 pakietów**, co zapewnia wysoką modularność 
 4. Pakiet piracer_control: PiRacer_Control_node pub:/cmd_motion sub: PWM_Driver_node; pub:/Steering_Servo sub:Servo_Driver_node; odometry_node pub:/odom sub:/follow_me_node
 5. Pakiet robot_hardware_interface: PWM_Driver_node, Servo_Driver_node, Encoder_Reader_node pub:/Wheel_speed sub:PiRacer_Control_Node & odometry_node
 
-uchyby beda liczone wzgledem base_linka; z tego wzgledu nalezy zrobic tf /target_pose do base_link
-# Follw_me_node.py
-Node, realizujacy funckje regulatora nadrzednego Gc1. Dodatkowo node ma tryby (jeszcze nieokreslone na ten momement Calibraiting, Searching (w momencie gdy zgubimy obiekt z pola widzenia) oraz Stopped). I w zaleznosci od stanu: albo bedzie liczyl regulator, albo publikuje zero, albo ruch w celu ponownego znalezienia obiektu).
-KWESTIA REGULATORA NA JUTRO
----
+###uchyby beda liczone wzgledem base_linka; z tego wzgledu nalezy zrobic tf /target_pose do base_link
+
+#Follow_me_node.py
+
+Node realizujący funkcję regulatora nadrzędnego GC2 w kaskadowej
+strukturze sterowania robota mobilnego.
+
+Node działa deterministycznie (stały okres próbkowania Ts).
+
+Subskrybowane tematy:
+- /target_config  → konfiguracja zadania (wartość zadana odległości, tryb pracy)
+- /target_pose    → pozycja celu względem kamery (camera_link) -> tf do (base_link)
+- /odom           → estymacja stanu robota (pozycja i orientacja base_link)
+
+Wewn. maszyna stanow:
+Tryby pracy:
+-CALIBRATING
+-TRACKING
+-SEARCHING
+-STOPPED
+
+Dwa regulatory sprzezone SISO
+Follow_me_node
+│
+├─ Subscribers
+│   ├─ /target_config
+│   ├─ /target_pose
+│   └─ /odom
+│
+├─ TF
+│   camera_link → base_link
+│
+├─ FSM (state machine)
+│   CALIBRATING
+│   TRACKING
+│   SEARCHING
+│   STOPPED
+│
+├─ Controller (GC2)
+│   distance controller → v
+│   heading controller  → φ
+│
+└─ Publisher
+    /cmd_ackermann
 
 ### Workspace Layout
 

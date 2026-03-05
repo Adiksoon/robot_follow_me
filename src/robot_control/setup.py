@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+		'follow_me_node = robot_control.follow_me_node:main',
         ],
     },
 )
