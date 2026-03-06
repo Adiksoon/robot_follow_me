@@ -1,14 +1,23 @@
-from numpy import sign
+from sympy import atan2
 
 import rclpy
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
-
+from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseStamped
+from numpy import sign
 class FollowMeNode(Node):
 
   def __init__(self):
     super().__init__('follow_me_node')
     
+    #PUBLISHER
+    self.control_publisher=self.create_publisher(AckermannDriveStamped, '/cmd_ackermann', 10)          
+
+    #SUBSCRIBERS
+    self.odom_subscriber=self.create_subscription(Odometry, '/odom', self.odom_callback, 10)
+    
+
     #TIMER
     frequency = 20 #Hz
     timer_period = 1.0 / frequency  # seconds
@@ -35,19 +44,29 @@ class FollowMeNode(Node):
     self.last_time=self.get_clock().now()
     self.iteration = 0
     self.sum_dt = 0.0
+    self.control_v=0.0
+    self.control_phi=0.0  
     self.deviation_v=0.0
     self.deviation_phi=0.0
     self.integral_v=0.0
     self.integral_phi=0.0 
     self.last_deviation_v=0.0
     self.last_deviation_phi=0.0 
+    self.target_distance=0.0
+    self.last_target_angle=0.0
+    self.time_since_last_detection=0.0  
+    self.lost_target_time=0.0
+    self.robot_x=0.0
+    self.robot_y=0.0
+    self.robot_theta=0.0
+
 
     #FLAGA Z /Target_Pose - na tym etapie ustawiona na ,,sztywno'' na True, ale docelowo będzie aktualizowana przez subskrypcję
     self.target_detected = True
     self.deviation_v = 0.1  # Przykładowa wartość odchylenia prędkości
     self.deviation_phi = 0.05  # Przykładowa wartość odchylenia kąta skrętu
-    self.target_angel=0.0
-
+    self.target_angle=0.0 
+    self.target_distance=0.0
 
   def timer_callback(self):
     
@@ -66,13 +85,28 @@ class FollowMeNode(Node):
       self.iteration = 0 
       self.sum_dt = 0.0  
     
-      #MASCHINE STATE
+    if self.target_detected==False:
+       self.lost_target_time+=self.dt
+    else:
+        self.lost_target_time=0.0
+
     if self.target_detected:
+       self.time_since_last_detection = 0.0
+
+      #MASCHINE STATE
+    if self.lost_target_time<0.50:
         self.following()
-        self.get_logger().debug("Target detected - following mode")
+        self.get_logger().debug("Target detected - following mode. {control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")
     else:
         self.searching()
-        self.get_logger().debug("Target not detected - searching mode")
+        self.get_logger().debug("Target not detected - searching mode. {control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")
+    
+    #PUBLISHING CONTROL COMMANDS
+    ack_msg=AckermannDriveStamped()
+    ack_msg.header.stamp=current_time.to_msg()
+    ack_msg.drive.speed=self.control_v
+    ack_msg.drive.steering_angle=self.control_phi
+    self.control_publisher.publish(ack_msg)
 
   def following(self):
       
@@ -90,7 +124,7 @@ class FollowMeNode(Node):
       self.control_phi=self.Kp_phi*self.deviation_phi + self.Ki_phi*self.integral_phi + self.Kd_phi*derivative_phi
       self.last_deviation_phi = self.deviation_phi
 
-      if self.target_angle != 0.0:
+      if self.target_detected==True:
         self.last_target_angle=self.target_angle
 
   def searching(self):
@@ -103,8 +137,25 @@ class FollowMeNode(Node):
       else:
          self.searching_mode()
 
+  def searching_mode(self):
+      self.control_v=0.1
+      straight_time=5.0
+      turning_time=5.0
+      if self.time_since_last_detection % (straight_time + turning_time) < straight_time:
+          self.control_phi = sign(self.last_target_angle) * 0.5
+      else:
+          self.control_phi=0  
+  
+  def odom_callback(self, msg):
+      #EXTRACTING ODOMETRY DATA
+      self.robot_x=msg.pose.pose.position.x
+      self.robot_y=msg.pose.pose.position.y
 
-
+      #CALCULATING ROBOT ORIENTATION (THETA) FROM QUATERNION
+      q=msg.pose.pose.orientation
+      siny_cosp=2*(q.w*q.z+q.x*q.y)
+      cosy_cosp=1-2*(q.y*q.y+q.z*q.z)
+      self.robot_theta=atan2(siny_cosp, cosy_cosp) 
 
 
 
