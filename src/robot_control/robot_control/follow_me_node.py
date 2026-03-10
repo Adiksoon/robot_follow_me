@@ -1,5 +1,6 @@
 from sympy import atan2
 
+from nav_msgs import msg
 import rclpy
 from rclpy.node import Node
 from ackermann_msgs.msg import AckermannDriveStamped
@@ -54,11 +55,13 @@ class FollowMeNode(Node):
     self.last_deviation_phi=0.0 
     self.target_distance=0.0
     self.last_target_angle=0.0
-    self.time_since_last_detection=0.0  
-    self.lost_target_time=0.0
+    self.lost_target_time=0.0  
     self.robot_x=0.0
     self.robot_y=0.0
     self.robot_theta=0.0
+    self.lost_x=0.0
+    self.lost_y=0.0
+    self.lost_theta=0.0
 
 
     #FLAGA Z /Target_Pose - na tym etapie ustawiona na ,,sztywno'' na True, ale docelowo będzie aktualizowana przez subskrypcję
@@ -87,19 +90,19 @@ class FollowMeNode(Node):
     
     if self.target_detected==False:
        self.lost_target_time+=self.dt
+       self.lost_x=self.robot_x
+       self.lost_y=self.robot_y
+       self.lost_theta=self.robot_theta  
     else:
         self.lost_target_time=0.0
-
-    if self.target_detected:
-       self.time_since_last_detection = 0.0
 
       #MASCHINE STATE
     if self.lost_target_time<0.50:
         self.following()
-        self.get_logger().debug("Target detected - following mode. {control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")
+        self.get_logger().debug(f"Target detected - following mode. {self.control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")
     else:
         self.searching()
-        self.get_logger().debug("Target not detected - searching mode. {control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")
+        self.get_logger().debug(f"Target not detected - searching mode. {self.control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")
     
     #PUBLISHING CONTROL COMMANDS
     ack_msg=AckermannDriveStamped()
@@ -128,24 +131,33 @@ class FollowMeNode(Node):
         self.last_target_angle=self.target_angle
 
   def searching(self):
-      self.time_since_last_detection += self.dt
       #ROBOT SEARCHING
       self.control_v=0.1
       
-      if self.time_since_last_detection < 5.0:
+      if self.lost_target_time < 5.0:
         self.control_phi= sign(self.last_target_angle)*0.5
-      else:
+      elif self.lost_target_time < 20.0:
          self.searching_mode()
+      else:
+          self.stopped()
 
   def searching_mode(self):
-      self.control_v=0.1
       straight_time=5.0
       turning_time=5.0
-      if self.time_since_last_detection % (straight_time + turning_time) < straight_time:
-          self.control_phi = sign(self.last_target_angle) * 0.5
+      t=self.lost_target_time
+
+      if t<turning_time:
+          self.control_phi=sign(self.last_target_angle)* 0.5
+      elif t<turning_time+straight_time:
+          self.control_phi=0.0
       else:
-          self.control_phi=0  
-  
+          self.control_phi=-sign(self.last_target_angle)*0.5 
+
+  def stopped(self):
+      self.control_v=0.0
+      self.control_phi=0.0  
+      self.get_logger().debug(f"Target lost for too long - stopping. {self.control_v:.2f} m/s, control_phi: {self.control_phi:.2f} rad")  
+      
   def odom_callback(self, msg):
       #EXTRACTING ODOMETRY DATA
       self.robot_x=msg.pose.pose.position.x
